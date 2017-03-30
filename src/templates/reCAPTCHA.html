@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	<title>reCAPTCHA</title>
+	<link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
+	<script src="https://www.google.com/recaptcha/api.js" async defer></script>
+	<script type="text/javascript">
+		var verifyCallback = function(response) {
+			document.forms["reCAPTCHA"].submit();
+		};
+	</script>
+  </head>
+  <body>
+  	<h2>Please confirm that you are not a robot</h2>
+    <form name="reCAPTCHA" action="{{ url_for('reCAPTCHA') }}" method="POST">
+      <div class="g-recaptcha" data-sitekey="{{ reCAPTCHA_site_key }}" data-callback=verifyCallback></div>
+      <br/>
+    </form>
+  </body>
+</html>

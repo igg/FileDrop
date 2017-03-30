@@ -1,0 +1,17 @@
+# Goes into /etc/systemd/system/filedrop.service
+# change username to your username (personal account or one just for filedrop)
+# username must belong to group www-data (the username used by nginx on ubuntu)
+[Unit]
+Description=uWSGI instance to serve filedrop
+After=network.target
+
+[Service]
+User=username
+Group=www-data
+WorkingDirectory=/home/username/filedrop
+Environment="PATH=/home/username/filedrop/filedropenv/bin"
+ExecStart=/home/username/filedrop/filedropenv/bin/uwsgi --ini filedrop.ini
+
+[Install]
+WantedBy=multi-user.target
+
