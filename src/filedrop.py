@@ -108,7 +108,8 @@ def sign_s3():
 
 	# Set the expiry time of the signature (in seconds) and declare the permissions of the file to be uploaded
 	expires = int(time.time()+60*60*24)
-	amz_headers = "x-amz-acl:public-read"
+	# amz_headers = "x-amz-acl:public-read"
+	amz_headers = "x-amz-acl:private"
  
 	# Generate the StringToSign:
 	string_to_sign = "PUT\n\n%s\n%d\n%s\n/%s/%s" % (mime_type, expires, amz_headers, s3_bucket, object_name)
