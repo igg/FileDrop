@@ -1,0 +1,18 @@
+# Goes into /etc/systemd/system/filedrop.service
+# May need to run systemctl daemon-reload afterwards
+# The below assumes that the service is installed under the 'filedrop' account
+# The username must belong to group www-data (the username used by nginx on ubuntu)
+[Unit]
+Description=uWSGI instance to serve filedrop
+After=network.target
+
+[Service]
+User=filedrop
+Group=www-data
+WorkingDirectory=/home/filedrop/
+Environment="PATH=/home/filedrop/FileDrop/venv/bin"
+ExecStart=/home/filedrop/FileDrop/venv/bin/uwsgi -H /home/filedrop/FileDrop/venv --ini FileDrop/src/filedrop.ini
+
+[Install]
+WantedBy=multi-user.target
+

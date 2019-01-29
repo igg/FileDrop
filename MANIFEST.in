@@ -1,0 +1,5 @@
+include filedrop/filedrop.ini
+include filedrop/filedrop-config.ini
+graft filedrop/static
+graft filedrop/templates
+global-exclude *.pyc

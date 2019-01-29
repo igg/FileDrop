@@ -1,0 +1,21 @@
+server {
+	listen 443 ssl http2;
+	# change URL as appropriate
+	server_name filedrop.example.com;
+
+	# Certificate from Let's Encrypt obtained by configuration file in /etc/letsencrypt/letsencrypt.conf
+	# Renewals managed by /home/ubuntu/bin/certrenew, daily cron in /etc/cron.daily/certcheck
+	# N.B.: this setup requires the include directive for letsencrypt-acme, which sets root for
+	#  requests to /.well-known/acme-challenge on port 80.
+	ssl on;
+	include snippets/ssl-params.conf;
+	ssl_certificate /etc/ssl/private/server-cert.pem;
+	ssl_certificate_key /etc/ssl/private/server-cert-key.pem;
+
+	location / {
+		include         uwsgi_params;
+		uwsgi_pass      unix:/home/filedrop/filedrop.sock;
+	}
+
+}
+
