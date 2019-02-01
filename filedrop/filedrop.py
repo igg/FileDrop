@@ -1,16 +1,10 @@
-# init howto
-# https://www.digitalocean.com/community/tutorials/how-to-set-up-uwsgi-and-nginx-to-serve-python-apps-on-ubuntu-14-04
-# ststemd howto:
-# https://www.digitalocean.com/community/tutorials/how-to-set-up-uwsgi-and-nginx-to-serve-python-apps-on-centos-7
-# S3 upload howto
-# https://devcenter.heroku.com/articles/s3-upload-python
 from flask import Flask, render_template, request, redirect, Response, url_for, session, abort
-import time, os, json, base64, hmac, urllib
+import time, os, json, base64, hmac, urllib, random, string, datetime
 from hashlib import sha1
 from ConfigParser import SafeConfigParser
 from logging import Formatter
 import requests
-
+import boto3
 
 application = Flask(__name__)
 
@@ -97,42 +91,48 @@ def sign_s3():
 		session.pop('reCAPTCHA', None)
 		session.pop('s3_numsigs', None)
 		abort (401)
-	
 
 	application.logger.debug("sign_s3: not a robot: {}/{} sigs in this session".format (session['s3_numsigs'],config.get('flask','max_session_sigs')))
+	application.logger.debug("sign_s3: request remote addr: {}".format (request.remote_addr))
 
-	# Load necessary information into the application:
-	aws_access_key = config.get('S3', 'aws_access_key')
-	aws_secret_access_key = config.get('S3', 'aws_secret_access_key')
-	s3_bucket = config.get('S3', 'bucket')
-	
-	# Collect information on the file from the GET parameters of the request:
-	object_name = urllib.quote_plus(request.args.get('file_name'))
-	mime_type = request.args.get('file_type')
+	folder = "{} {}".format (str(request.remote_addr), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-	application.logger.info("signing request to put {} in {}.".format (request.args.get('file_name'),s3_bucket))
+	# Get the application credentials and set a policy for the S3 bucket
+	sts = boto3.client(
+		'sts',
+		aws_access_key_id=config.get('S3', 'aws_access_key'),
+		aws_secret_access_key=config.get('S3', 'aws_secret_access_key'),
+		region_name=config.get('S3', 'region')
+	)
+	policy = json.dumps({ "Version":"2012-10-17",
+		"Statement"    : [{
+			"Effect"   : "Allow",
+			"Action"   : "s3:*",
+			"Resource" : ["arn:aws:s3:::{}/{}/*".format(config.get('S3', 'bucket'), folder)]
+		}]
+	})
 
+	# Get a federation token (temporary credentials based on application credentials + policy)
+	credentials = sts.get_federation_token(
+		Name='filedrop',
+		Policy=policy,
+		DurationSeconds= 60 * 60,
+	)
+	application.logger.debug("sign_s3: sts credentials")
+	application.logger.debug("  AccessKeyId = {}".format (credentials['Credentials']['AccessKeyId']))
+#	application.logger.debug("  SessionToken = {}".format (credentials['Credentials']['SessionToken']))
+#	application.logger.debug("  SecretAccessKey = {}".format (credentials['Credentials']['SecretAccessKey']))
+	application.logger.debug("Bucket = {}".format (config.get('S3', 'bucket')))
+	application.logger.debug("Folder = {}".format (folder))
 
-	# Set the expiry time of the signature (in seconds) and declare the permissions of the file to be uploaded
-	expires = int(time.time()+60*60*24)
-	# amz_headers = "x-amz-acl:public-read"
-	amz_headers = "x-amz-acl:private"
- 
-	# Generate the StringToSign:
-	string_to_sign = "PUT\n\n%s\n%d\n%s\n/%s/%s" % (mime_type, expires, amz_headers, s3_bucket, object_name)
-
-	# Generate the signature with which the StringToSign can be signed:
-	signature = base64.encodestring(hmac.new(aws_secret_access_key, string_to_sign.encode('utf8'), sha1).digest())
-	# Remove surrounding whitespace and quote special characters:
-	signature = urllib.quote_plus(signature.strip())
-
-	# Build the URL of the file in anticipation of its imminent upload:
-	url = 'https://%s.s3.amazonaws.com/%s' % (s3_bucket, object_name)
-
-	
+	# Send the federation token back to the caller:	
 	content = json.dumps({
-		'signed_request': '%s?AWSAccessKeyId=%s&Expires=%s&Signature=%s' % (url, aws_access_key, expires, signature),
-		'url': url,
+		'AccessKeyId': credentials['Credentials']['AccessKeyId'],
+		'SessionToken': credentials['Credentials']['SessionToken'],
+		'SecretAccessKey': credentials['Credentials']['SecretAccessKey'],
+		'Region': config.get('S3', 'region'),
+		'Bucket': config.get('S3', 'bucket'),
+		'Folder': folder,
 	})
 
 	if 's3_numsigs' in session:
@@ -140,8 +140,7 @@ def sign_s3():
 	else:
 		session['s3_numsigs'] = 1
 
-	return content
-
+	return (content)
 
 
 @application.errorhandler(Exception)

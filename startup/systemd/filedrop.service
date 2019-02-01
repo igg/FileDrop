@@ -11,7 +11,7 @@ User=filedrop
 Group=www-data
 WorkingDirectory=/home/filedrop/
 Environment="PATH=/home/filedrop/FileDrop/venv/bin"
-ExecStart=/home/filedrop/FileDrop/venv/bin/uwsgi -H /home/filedrop/FileDrop/venv --ini FileDrop/src/filedrop.ini
+ExecStart=/home/filedrop/FileDrop/venv/bin/uwsgi -H /home/filedrop/FileDrop/venv --ini FileDrop/filedrop/filedrop.ini
 
 [Install]
 WantedBy=multi-user.target

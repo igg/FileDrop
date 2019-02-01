@@ -1,8 +1,9 @@
 body            { font-family: 'Arial', 'Verdana', sans-serif; background: #eee; }
-a, h1, h2       { color: #377ba8; }
+a, h1, h2, h3   { color: #377ba8; }
 h1, h2          { margin: 0; }
 h1              { border-bottom: 2px solid #eee; }
 h2              { font-size: 1.2em; }
+h3              { font-size: 1em; }
 p               { font-size: 85%; }
 
 .page           { margin: 2em auto; width: 35em; border: 5px solid #ccc;
@@ -17,3 +18,36 @@ p               { font-size: 85%; }
 .flash          { background: #cee5F5; padding: 0.5em;
                   border: 1px solid #aacbe2; }
 .error          { background: #f0d6d6; padding: 0.5em; }
+
+#drop-area {
+  border: 5px dashed #ccc;
+  border-radius: 10px;
+  width: 480px;
+  font-family: sans-serif;
+  margin: 10px auto;
+  padding: 20px;
+}
+#drop-area.highlight {
+  border-color: purple;
+}
+p {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+.my-form {
+  margin-bottom: 10px;
+}
+.button {
+  display: inline-block;
+  padding: 10px;
+  background: #ccc;
+  cursor: pointer;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+.button:hover {
+  background: #ddd;
+}
+#fileElem {
+  display: none;
+}

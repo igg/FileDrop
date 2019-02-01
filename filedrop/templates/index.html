@@ -2,49 +2,141 @@
 <html>
 <head>
 	<script src='https://www.google.com/recaptcha/api.js'></script>
-	<link rel=stylesheet type=text/css href="{{ url_for('static', filename='style.css') }}">
+	<script src="https://sdk.amazonaws.com/js/aws-sdk-2.395.0.min.js"></script>
+	<script src="{{ url_for('static', filename='html5FileSelector.js') }}"></script>
+	<link rel='stylesheet' type='text/css' href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
 
-<h1>Upload a file</h1>
+<h1>Upload multiple files and/or folders to Mindshare Medical</h1>
+<h3>Data will be encrypted in transit and acessible only to designated Mindshare Medical personnel</h2>
 <br>
-<input type="file" id="file_input"/>
-<hr>
-<p id="status">Please select a file to upload</p>
-
+<div id="drop-area">
+  <form class="my-form">
+    <p>Upload multiple files using the file dialog by clicking the button below or drag and drop multiple files and/or folders onto the dashed region</p>
+    <input type="file" id="fileElem" multiple onchange="handleDrop(event)">
+    <label class="button" for="fileElem">Select one or more files</label>
+    <p>Note that folder contents will be uploaded recursively (all contents of folders within folders).</p>
+  </form>
+</div><hr>
+<div id="progress-div">
+</div>
 
 <script type="text/javascript">
 
 /*
     Function to carry out the actual PUT request to S3 using the signed request from the Python app.
 */
-function upload_file(file, signed_request, url){
-	var files = document.getElementById("file_input").files;
-	var filename = files[0].name;
-	var stat_tag = document.getElementById("status")
-	var xhr = new XMLHttpRequest();
-	xhr.open("PUT", signed_request);
-	// xhr.setRequestHeader('x-amz-acl', 'public-read');
-	xhr.setRequestHeader('x-amz-acl', 'private');
-	xhr.onload = function() {
-		if (xhr.status === 200) {
-			stat_tag.innerHTML = "Successfully uploaded '"+filename+"'."+
-				"<br/>Click the button above to choose another file to upload.";            
-		}
-	};
-	xhr.upload.onprogress = function (e) {
-		if (e.lengthComputable) {
-			percent = Math.round((e.loaded/e.total) * 100.0);
-			stat_tag.innerHTML = "Uploading '"+filename+"': "+percent+'%';
-		}
-	};
+function upload_files (files,federated_token) {
+	var stat_tag = document.getElementById("status");
+	var MB_per_chunk = 2 * 1024;
+	var options = {partSize: MB_per_chunk * 1024 * 1024, queueSize: 3};
 
-	xhr.onerror = function() {
-		alert("Could not upload file '"+filename+"'.");
-		location.reload(true);
-	};
-	stat_tag.innerHTML = "Uploading '"+filename+"'"
-	xhr.send(file);
+	AWS.config.update({
+		accessKeyId: federated_token.AccessKeyId,
+		sessionToken: federated_token.SessionToken,
+		secretAccessKey: federated_token.SecretAccessKey,
+		region: federated_token.Region,
+		// useAccelerateEndpoint: true, //for using accelerated transfers
+	});
+	var bucket = federated_token.Bucket;
+	var folder = federated_token.Folder;
+	var s3 = new AWS.S3();
+	var uploads = {}
+	var myNode = document.getElementById("progress-div");
+	while (myNode.firstChild) {
+    	myNode.removeChild(myNode.firstChild);
+	}
+	console.log(files)
+	for (var i = 0; i < files.length; i++) {
+		var file = files[i];
+		file.fullPath = file.fullPath.replace(/\\/g, '/');
+		if (file.fullPath.indexOf("/") == 0) {
+			file.fullPath = file.fullPath.substring (1);
+		}
+		var params = {
+			Bucket: bucket,
+			Key:    folder+'/'+file.fullPath,
+			Body:   file.fileObject
+		};
+		console.log("file.name: "+file.name);
+		console.log("fullPath: "+file.fullPath);
+
+		var last_progress_time = new Date().getTime();
+		var last_progress_bytes = 0;
+		var MBps_str = '';
+
+		s3.upload(params, (err, data) => {
+			if (err) {
+				if (err.code === 'RequestAbortedError') {
+					console.log("upload aborted");
+					stat_tag.innerHTML = "Upload Canceled";
+				} else {
+					console.log("upload failed: "+err.message);
+					stat_tag.innerHTML = "Uploading FAILED: "+err.message;
+				}
+			} else {
+				var key = String(data.Key);
+				if (key in uploads) {
+					console.log("Upload of '"+uploads[key].fname+"' successful");
+					uploads[key].p_elem.innerHTML = "Upload of '"+uploads[key].fname+"' successful";
+				} else if (key) {
+					console.log("Upload of '"+key.substring (key.indexOf("/")+1)+"' successful");
+				}
+			}
+		}).on('httpUploadProgress', (evt) => {
+			var key = String(evt.key);
+			if ( !(key in uploads) ) {
+				p_elem = document.createElement("p");
+				p_elem.id = key;
+				uploads[key] = {
+					fname:      key.substring (key.indexOf("/")+1),
+					p_elem:     p_elem,
+					total:      evt.total,
+					loaded:     evt.loaded,
+					last_bytes: 0,
+					last_t:     new Date().getTime(),
+				}
+				p_elem.appendChild(document.createTextNode(""));
+				document.getElementById("progress-div").appendChild(p_elem);
+				p_elem.innerHTML = "Uploading '"+uploads[key].fname;
+			}
+
+			var ul = uploads[key]
+			if (evt.total > 0) {
+				var percent = (evt.loaded / evt.total) * 100.0;
+				if ((new Date().getTime() - ul.last_t) > (2000)) {
+					var MBps = ((evt.loaded - ul.last_bytes) / (1024 * 1024)) /
+						((new Date().getTime() - ul.last_t) / 1000.0);
+					ul.last_t = new Date().getTime();
+					ul.last_bytes = evt.loaded;
+					MBps_str = ' ('+MBps.toFixed(1)+' MB/s)';
+				}
+				ul.p_elem.innerHTML = "Uploading '"+ul.fname+"': "+percent.toFixed(1)+'%'+MBps_str;
+			}
+		});
+	}
+
+/*
+	return new Promise((resolve, reject) => {
+		this.awsReq = s3.upload(params, (err, data) => {
+			if (err) {
+				if (err.code === 'RequestAbortedError') {
+					console.log("upload aborted")
+				} else {
+					console.log("upload failed")
+				}
+				return reject(err);
+			} else {
+				console.log('upload successful')
+			}
+		}).on('httpUploadProgress', (evt) => {
+			var percent = Math.floor(evt.loaded * 100 / evt.total)
+			console.log(percent);
+			stat_tag.innerHTML = "Uploading '"+filename+"': "+percent+'%';
+		});
+	});
+*/
 }
 
 /*
@@ -52,44 +144,75 @@ function upload_file(file, signed_request, url){
     If request successful, continue to upload the file using this signed
     request.
 */
-function get_signed_request(file){
+function handle_files(files){
     var xhr = new XMLHttpRequest();
-    xhr.open("GET", "/sign_s3?file_name="+file.name+"&file_type="+file.type);
+    var response;
+    var upload_p;
+    xhr.open("GET", "/sign_s3/");
     xhr.onreadystatechange = function(){
-        if(xhr.readyState === 4){
-            if(xhr.status === 200){
-                var response = JSON.parse(xhr.responseText);
-                upload_file(file, response.signed_request, response.url);
-            }
-            else{
-                alert("Could not get signed URL.");
-                location.reload(true);
-            }
-        }
-    };
-    xhr.send();
+		if(xhr.readyState === 4){
+			if(xhr.status === 200){
+				response = JSON.parse(xhr.responseText);
+				console.log(
+					'AccessKeyId: ' + response.AccessKeyId + '\n',
+//					'SessionToken: ' + response.SessionToken+ '\n',
+//					'SecretAccessKey: ' + response.SecretAccessKey+ '\n',
+					'Region: ' + response.Region+ '\n',
+					'Bucket: ' + response.Bucket+ '\n',
+					);
+				upload_files (files,response);
+			} else{
+				alert("Could not get signed URL.");
+				location.reload(true);
+			}
+		}
+	};
+	xhr.send();
 }
 
 /*
    Function called when file input updated. If there is a file selected, then
    start upload procedure by asking for a signed request from the app.
 */
-function init_upload(){
-    var files = document.getElementById("file_input").files;
-    var file = files[0];
-    if(file == null){
-        alert("No file selected.");
-        return;
-    }
-    get_signed_request(file);
+
+function preventDefaults (e) {
+  e.preventDefault()
+  e.stopPropagation()
+}
+
+function highlight(e) {
+  dropArea.classList.add('highlight');
+}
+
+function unhighlight(e) {
+  dropArea.classList.remove('highlight');
+}
+
+function handleDrop(e) {
+	getDroppedOrSelectedFiles(e).then (data => handle_files (data));
+
 }
 
 /*
    Bind listeners when the page loads.
+
+document.getElementById("file_input").onchange = init_upload;
 */
-(function() {
-    document.getElementById("file_input").onchange = init_upload;
-})();
+
+let dropArea = document.getElementById('drop-area');
+dropArea.addEventListener('dragenter', preventDefaults, false);
+dropArea.addEventListener('dragover', preventDefaults, false);
+dropArea.addEventListener('dragleave', preventDefaults, false);
+dropArea.addEventListener('drop', preventDefaults, false);
+
+dropArea.addEventListener('dragenter', highlight, false);
+dropArea.addEventListener('dragover', highlight, false);
+
+dropArea.addEventListener('dragleave', unhighlight, false);
+dropArea.addEventListener('drop', unhighlight, false);
+
+dropArea.addEventListener('drop', handleDrop, false)
+
 
 </script>
 </body>

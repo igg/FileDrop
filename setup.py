@@ -6,12 +6,13 @@ setup(
 	packages=find_packages(include=[
 		'filedrop',
 	]),
-#	py_modules=['filedrop.wsgi'],
+
 	include_package_data=True,
 	zip_safe=False,
 	install_requires=[
 		'uwsgi',
 		'flask',
+		'boto3',
 		'requests',
     ],
 )
