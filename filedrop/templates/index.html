@@ -16,7 +16,10 @@
     <p>Upload multiple files using the file dialog by clicking the button below or drag and drop multiple files and/or folders onto the dashed region</p>
     <input type="file" id="fileElem" multiple onchange="handleDrop(event)">
     <label class="button" for="fileElem">Select one or more files</label>
-    <p>Note that folder contents will be uploaded recursively (all contents of folders within folders).</p>
+    <p>Folder contents will be uploaded recursively (all contents of folders within folders).</p>
+    <br>
+    <p><b>Please Note that this works best in Chrome, Firefox and Edge browsers.</b><br>
+    Folder upload does not work in Safari, and this may not work at all in Internet Explorer.</p>
   </form>
 </div><hr>
 <div id="progress-div">
@@ -150,8 +153,8 @@ function handle_files(files){
     var upload_p;
     xhr.open("GET", "/sign_s3/");
     xhr.onreadystatechange = function(){
-		if(xhr.readyState === 4){
-			if(xhr.status === 200){
+		if(xhr.readyState == 4){
+			if(xhr.status == 200){
 				response = JSON.parse(xhr.responseText);
 				console.log(
 					'AccessKeyId: ' + response.AccessKeyId + '\n',

@@ -16,8 +16,8 @@ application.debug = False
 if application.debug is not True:
 	import logging
 	from logging.handlers import RotatingFileHandler
-#	loglevel = logging.INFO
-	loglevel = logging.DEBUG
+	loglevel = logging.INFO
+#	loglevel = logging.DEBUG
 
 	logFormatStr = '%(asctime)s %(levelname)s: %(message)s'
 # 	if loglevel == logging.DEBUG:
@@ -93,7 +93,7 @@ def sign_s3():
 		abort (401)
 
 	application.logger.debug("sign_s3: not a robot: {}/{} sigs in this session".format (session['s3_numsigs'],config.get('flask','max_session_sigs')))
-	application.logger.debug("sign_s3: request remote addr: {}".format (request.remote_addr))
+	application.logger.info("sign_s3: request remote addr: {}".format (request.remote_addr))
 
 	folder = "{} {}".format (str(request.remote_addr), datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
